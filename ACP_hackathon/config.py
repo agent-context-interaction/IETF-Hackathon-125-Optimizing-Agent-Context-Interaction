@@ -7,7 +7,7 @@ http_client = httpx.Client(
 )
 
 client = OpenAI(
-    api_key = os.getenv("DEEPSEEK_API_KEY", "sk-3d784c54aa334377a27821fe1f4d0091"),
+    api_key = os.getenv("DEEPSEEK_API_KEY", "xxxx"),
     base_url="https://api.deepseek.com/v1",
     http_client = http_client,
 )
