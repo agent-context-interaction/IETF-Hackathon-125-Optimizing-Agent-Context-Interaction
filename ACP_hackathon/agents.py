@@ -1,5 +1,3 @@
-
-
 import json
 import re
 from typing import Any, Dict, List
@@ -71,26 +69,7 @@ def _build_dependency_context(state: Dict[str, Any], dependencies: List[str]) ->
     return "\n\n".join(blocks) if blocks else "None"
 
 
-def _normalize_agent_context(updated: Dict[str, Any], template: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        "AgentID": updated.get("AgentID") or template.get("AgentID", ""),
-        "AgentName": updated.get("AgentName") or template.get("AgentName", ""),
-        "SubTaskID": updated.get("SubTaskID") or template.get("SubTaskID", ""),
-        "SubTaskName": updated.get("SubTaskName") or template.get("SubTaskName", ""),
-        "Dependencies": updated.get("Dependencies")
-        if isinstance(updated.get("Dependencies"), list)
-        else template.get("Dependencies", []),
-        "todoItems": updated.get("todoItems")
-        if isinstance(updated.get("todoItems"), list)
-        else template.get("todoItems", []),
-        "ItemstateUpdates": updated.get("ItemstateUpdates")
-        if isinstance(updated.get("ItemstateUpdates"), list)
-        else template.get("ItemstateUpdates", []),
-        "KeyInformation": updated.get("KeyInformation")
-        if isinstance(updated.get("KeyInformation"), list)
-        else template.get("KeyInformation", []),
-        "full_output": str(updated.get("full_output") or ""),
-    }
+
 
 
 def call_llm_stream_full_output(prompt: str, agent_name: str) -> str:
@@ -125,6 +104,9 @@ def call_llm_stream_full_output(prompt: str, agent_name: str) -> str:
     print(f"\n===== {agent_name} stream end =====\n")
     return "".join(parts).strip()
 
+def _normalize_agent_context(parsed: Dict[str, Any], base_context: Dict[str, Any]) -> Dict[str, Any]:
+    "to be devised"
+    return
 
 def run_sub_agent(state: Dict[str, Any], agent_context: Dict[str, Any], feedback: str = "") -> Dict[str, Any]:
     agent_name = agent_context.get("AgentName", "sub_agent")
@@ -136,7 +118,7 @@ def run_sub_agent(state: Dict[str, Any], agent_context: Dict[str, Any], feedback
     todo_items = agent_context.get("todoItems", [])
     todo_text = "\n".join(
         [f"- {item.get('itemId', '')}: {item.get('description', '')}" for item in todo_items]
-    ) or "- 无"
+    ) or "- None"
 
     prompt = f"""
 You are {agent_name}. Capability boundary: {capability}
@@ -152,25 +134,17 @@ If there is evaluation feedback, must correct:
 
 Please only output strict JSON (only AgentContext object, no extra text):
 {{
-  "AgentID": "{agent_context.get("AgentID", "")}",
-  "SubTaskID": "{agent_context.get("SubTaskID", "")}",
-  "todoItems": [{{"itemId": "...", "description": "..."}}],
-  "ItemstateUpdates": [{{"itemId": "...", "state": 0 or 1}}],
-  "KeyInformation": [{{"itemId": "...", "outputabstract": "corresponding item summary"}}],
-  "full_output": "complete task result text"
+"to be devised"
 }}
 
 Rules:
-1. full_output should write complete task result text, covering all todoItems.
-2. ItemstateUpdates must cover all todoItems, completed ones write 1, otherwise 0.
-3. KeyInformation must align with todoItems by itemId, no omissions, and keep content concise.
-4. Output JSON without line breaks.
-5. full_output content must not contain itemId or todoItems related identifiers, directly write result text.
+to be devised
 """
+
 
     raw_output = call_llm_stream_full_output(prompt, agent_name)
     parsed = _extract_json_object(raw_output)
-    updated_context = _normalize_agent_context(parsed, agent_context)
+    updated_context = _normalize_agent_context(parsed, agent_context)   
     if not updated_context.get("full_output"):
         updated_context["full_output"] = raw_output
 

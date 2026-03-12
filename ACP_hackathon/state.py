@@ -1,11 +1,3 @@
-"""
-状态类型定义模块
-
-定义Agent Context Protocol (ACP)相关的类型结构。
-包含：
-- ACPState：全局任务状态类型定义
-"""
-
 from typing import TypedDict, Dict, Any
 
 

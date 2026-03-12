@@ -1,11 +1,11 @@
 """
-指标统计模块
+Metrics Statistics Module
 
-负责跟踪和统计任务执行过程中的性能指标。
-主要功能：
-- 记录LLM调用的token使用量
-- 统计任务执行耗时
-- 提供指标查询和重置接口
+Responsible for tracking and statistics of performance metrics during task execution.
+Main features:
+- Record token usage of LLM calls
+- Statistics of task execution time
+- Provide interfaces for querying and resetting metrics
 """
 
 import time
