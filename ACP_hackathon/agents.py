@@ -1,5 +1,6 @@
 import json
 import re
+from datetime import datetime
 from typing import Any, Dict, List
 
 from config import client
@@ -77,7 +78,7 @@ def call_llm_stream_full_output(prompt: str, agent_name: str) -> str:
     stream = client.chat.completions.create(
         model=MODEL,
         messages=[
-            {"role": "system", "content": "You are a financial analysis sub-agent. Only output the final content that meets user requirements."},
+            {"role": "system", "content": f"You are {agent_name}, a financial analysis expert. You must complete the assigned tasks and return results in strict JSON format."},
             {"role": "user", "content": prompt},
         ],
         temperature=0.2,
@@ -89,7 +90,7 @@ def call_llm_stream_full_output(prompt: str, agent_name: str) -> str:
     for chunk in stream:
         usage = getattr(chunk, "usage", None)
         if usage:
-            add_usage(usage)
+            add_usage(usage, agent_type="subagent")
 
         choices = getattr(chunk, "choices", None) or []
         if not choices:
@@ -105,8 +106,22 @@ def call_llm_stream_full_output(prompt: str, agent_name: str) -> str:
     return "".join(parts).strip()
 
 def _normalize_agent_context(parsed: Dict[str, Any], base_context: Dict[str, Any]) -> Dict[str, Any]:
-    "to be devised"
-    return
+    """规范化 Agent 返回的 AgentContext"""
+    # 合并基础上下文和解析结果
+    normalized = {
+        "AgentID": parsed.get("AgentID", base_context.get("AgentID", "")),
+        "AgentName": parsed.get("AgentName", base_context.get("AgentName", "")),
+        "SubTaskID": parsed.get("SubTaskID", base_context.get("SubTaskID", "")),
+        "SubTaskName": parsed.get("SubTaskName", base_context.get("SubTaskName", "")),
+        "Dependencies": parsed.get("Dependencies", base_context.get("Dependencies", [])),
+        "Context/ContextURI": parsed.get("Context/ContextURI", ""),
+        "todoItems": parsed.get("todoItems", base_context.get("todoItems", [])),
+        "ItemstateUpdates": parsed.get("ItemstateUpdates", []),
+        "KeyInformation": parsed.get("KeyInformation", []),
+        "LastUpdated": parsed.get("LastUpdated", ""),
+        "full_output": parsed.get("full_output", "")
+    }
+    return normalized
 
 def run_sub_agent(state: Dict[str, Any], agent_context: Dict[str, Any], feedback: str = "") -> Dict[str, Any]:
     agent_name = agent_context.get("AgentName", "sub_agent")
@@ -121,25 +136,46 @@ def run_sub_agent(state: Dict[str, Any], agent_context: Dict[str, Any], feedback
     ) or "- None"
 
     prompt = f"""
-You are {agent_name}. Capability boundary: {capability}
+You are {agent_name}. Capability: {capability}
 
-Consider full task output:
-{dep_context}
-
-Please complete sub-tasks based on todoItems, task list as follows:
+Your assigned tasks (todoItems):
 {todo_text}
 
-If there is evaluation feedback, must correct:
-{feedback if feedback else "None"}
+Context from dependent agents:
+{dep_context if dep_context else "None"}
 
-Please only output strict JSON (only AgentContext object, no extra text):
+{f"Evaluation feedback - you must address these issues: {feedback}" if feedback else ""}
+
+IMPORTANT: You must ACTUALLY COMPLETE the tasks, not just return template text!
+
+Instructions:
+1. Complete each task in todoItems thoroughly
+2. For data collection tasks: gather real financial data for NIO, Li Auto, XPeng, BYD
+3. For analysis tasks: provide detailed analysis based on the data
+4. Extract key findings for each completed item
+
+Output format - strict JSON:
 {{
-"to be devised"
+    "AgentID": "{agent_name}",
+    "AgentName": "{agent_name}",
+    "SubTaskID": "{agent_context.get('SubTaskID', '')}",
+    "SubTaskName": "{agent_context.get('SubTaskName', '')}",
+    "Dependencies": {json.dumps(dependencies)},
+    "Context/ContextURI": "",
+    "todoItems": {json.dumps(todo_items, ensure_ascii=False)},
+    "ItemstateUpdates": [
+        // For each todoItem, set state: 1 if completed, 0 if not
+        {{"itemId": "item1", "state": 1}}
+    ],
+    "KeyInformation": [
+        // For each completed item, provide a brief summary (50-100 words)
+        {{"itemId": "item1", "outputabstract": "Your actual key findings here"}}
+    ],
+    "LastUpdated": "{datetime.now().isoformat()}",
+    "full_output": "Your complete detailed analysis here (200-500 words)"
 }}
 
-Rules:
-to be devised
-"""
+Output ONLY the JSON, no markdown code blocks."""
 
 
     raw_output = call_llm_stream_full_output(prompt, agent_name)
