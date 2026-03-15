@@ -21,8 +21,12 @@ MAX_RETRY = 2
 
 
 def _build_eval_payload(agent_context: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract structured information needed for evaluation"""
     return {
-        'to be devised'
+        "SubTaskName": agent_context.get("SubTaskName", ""),
+        "todoItems": agent_context.get("todoItems", []),
+        "ItemstateUpdates": agent_context.get("ItemstateUpdates", []),
+        "KeyInformation": agent_context.get("KeyInformation", [])
     }
 
 
@@ -30,13 +34,15 @@ def evaluate_by_master(agent_context: Dict[str, Any], retry_count: int) -> Dict[
     eval_payload = _build_eval_payload(agent_context)
     prompt = f"""
 You are the main agent's evaluation module. Please evaluate whether the sub-agent completed the task based on the following structured content.
-Evaluation input: to be devised
 
+Evaluation input:
+{json.dumps(eval_payload, ensure_ascii=False, indent=2)}
 
 Requirements:
-1. Only judge whether task is satisfied based on ItemstateUpdates, KeyInformation.
-2. Do not rely on or assume any additional context.
-3. decision value can only be "pass", "retry", "force_pass".
+1. Check ItemstateUpdates: all items should have state=1 (completed)
+2. Check KeyInformation: should provide meaningful output summaries for each item
+3. Judge if task quality meets requirements
+
 Please output strict JSON:
 {{
   "decision": "pass" or "retry" or "force_pass",
@@ -50,9 +56,21 @@ Please output strict JSON:
         temperature=0,
     )
 
-    add_usage(getattr(response, "usage", None))
+    add_usage(getattr(response, "usage", None), agent_type="master")
     raw = (response.choices[0].message.content or "").strip()
 
+    # 解析 JSON
+    decision = "retry"
+    feedback = ""
+    try:
+        result = json.loads(raw)
+        decision = result.get("decision", "retry")
+        feedback = result.get("feedback", "")
+    except:
+        # JSON 解析失败，使用字符串匹配
+        if "pass" in raw.lower():
+            decision = "pass"
+        feedback = raw
 
     if decision not in {"pass", "retry", "force_pass"}:
         decision = "retry"
